@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyAnalytics | Passenger Entry</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background:#eef2f5; padding:40px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border-radius:14px; border:none; box-shadow:0 8px 18px rgba(0,0,0,.08); }
+        .pnr-badge { background: #2c3e50; color: #fff; padding: 5px 12px; border-radius: 20px; font-family: monospace; font-size: 1.1rem; }
+        textarea { resize:none; border-radius: 10px; border: 2px solid #dee2e6; transition: 0.3s; }
+        textarea:focus { border-color: #007bff; box-shadow: none; }
+
+        /* Polished Soft-Pill Badges */
+        .badge-soft-success {
+            background-color: #e8f5e9 !important;
+            color: #1b5e20 !important;
+            border: 1px solid #c8e6c9;
+            font-weight: 600;
+            border-radius: 50px;
+            padding: 5px 12px;
+        }
+        .badge-soft-danger {
+            background-color: #ffebee !important;
+            color: #b71c1c !important;
+            border: 1px solid #ffcdd2;
+            font-weight: 600;
+            border-radius: 50px;
+            padding: 5px 12px;
+        }
+        .badge-soft-secondary {
+            background-color: #f5f5f5 !important;
+            color: #424242 !important;
+            border: 1px solid #e0e0e0;
+            font-weight: 600;
+            border-radius: 50px;
+            padding: 5px 12px;
+        }
+
+        .positive { color:#198754; font-weight:bold }
+        .negative { color:#dc3545; font-weight:bold }
+        .neutral { color:#6c757d; font-weight:bold }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="row g-4">
+        <div class="col-md-5">
+            <div class="card p-4 mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0">✈️ Passenger Review </h4>
+                    <div class="pnr-badge" title="Current Passenger PNR">{{ current_pnr }}</div>
+                </div>
+
+                {% if error %}
+                <div class="alert alert-danger py-2 small">{{ error }}</div>
+                {% endif %}
+
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">FLIGHT EXPERIENCE</label>
+                        <textarea class="form-control" rows="5" name="review_text"
+                                  placeholder="How was your journey today?"
+                                  {% if prediction or (error and 'already submitted' in error) %}disabled{% endif %}
+                                  required>{{ review_text if review_text }}</textarea>
+                    </div>
+
+                    {% if not prediction and not (error and 'already submitted' in error) %}
+                    <button class="btn btn-primary w-100 fw-bold py-2">Analyze Sentiment</button>
+                    {% else %}
+                    <a href="/next-passenger" class="btn btn-success w-100 fw-bold py-2">Analyze Next Passenger</a>
+                    {% endif %}
+                </form>
+
+                {% if prediction %}
+                <div class="mt-4 p-3 bg-light rounded border">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold">Sentiment: <span class="{{ prediction|lower }}">{{ prediction }}</span></span>
+                        <span class="badge bg-primary">{{ category }}</span>
+                    </div>
+                    <div class="progress mb-2" style="height: 8px;">
+                        <div class="progress-bar bg-success" style="width: {{ confidence }}%"></div>
+                    </div>
+                    <p class="small mb-1"><b>Confidence:</b> {{ confidence }}%</p>
+                    <div class="mt-2 p-2 bg-white rounded border-start border-4 border-info">
+                        <small class="d-block text-muted">Airlines Recommended Action:</small>
+                        <small class="fw-bold">{{ action }}</small>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="card p-3">
+                <h6 class="fw-bold">System Status</h6>
+                <div class="d-flex justify-content-between small text-muted">
+                    <span>Model: Logistic Regression</span>
+                    <span>Status: <span class="text-success">● Live</span></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="mb-0">📊 Current Session</h4>
+                    <a href="/dashboard" class="btn btn-dark btn-sm">Global Dashboard</a>
+                </div>
+
+                <div class="row text-center mb-4">
+                    <div class="col">
+                        <div class="h3 mb-0">{{ history|length }}</div>
+                        <div class="small text-muted">Total Reviews</div>
+                    </div>
+                    <div class="col">
+                        <div class="h3 mb-0 text-success">{{ history|selectattr("sentiment","equalto","Positive")|list|length }}</div>
+                        <div class="small text-muted">Positive</div>
+                    </div>
+                    <div class="col">
+                        <div class="h3 mb-0 text-danger">{{ history|selectattr("sentiment","equalto","Negative")|list|length }}</div>
+                        <div class="small text-muted">Negative</div>
+                    </div>
+                </div>
+
+                <div style="height: 250px;">
+                    <canvas id="sessionChart"></canvas>
+                </div>
+
+                <hr class="my-4">
+
+                <h5>Live Session Feed (IST)</h5>
+                <div class="overflow-auto" style="max-height: 250px; padding-right: 5px;">
+                    {% if history %}
+                        {% for item in history|reverse %}
+                        <div class="d-flex justify-content-between align-items-center border-bottom py-3">
+                            <span class="small" style="max-width: 75%;">
+                                <b>{{ item.pnr }}:</b>
+                                <span class="text-secondary">{{ item.text[:65] }}{% if item.text|length > 65 %}...{% endif %}</span>
+                                <br><small class="text-muted" style="font-size: 0.75rem;">{{ item.time }}</small>
+                            </span>
+                            <span class="badge {% if item.sentiment == 'Positive' %}badge-soft-success{% elif item.sentiment == 'Negative' %}badge-soft-danger{% else %}badge-soft-secondary{% endif %}"
+                                  style="min-width: 85px; text-align: center;">
+                                {{ item.sentiment }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-center text-muted py-4">No reviews submitted yet.</p>
+                    {% endif %}
+                </div>
+
+                <div class="mt-auto pt-3 d-flex gap-2">
+                    <a href="/reset" class="btn btn-outline-danger btn-sm flex-fill">Clear Session</a>
+                    <a href="/download-csv" class="btn btn-outline-success btn-sm flex-fill">Download CSV</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const ctx = document.getElementById("sessionChart");
+    new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels: ["Positive", "Negative", "Neutral"],
+            datasets: [{
+                data: [
+                    {{ history|selectattr("sentiment","equalto","Positive")|list|length }},
+                    {{ history|selectattr("sentiment","equalto","Negative")|list|length }},
+                    {{ history|selectattr("sentiment","equalto","Neutral")|list|length }}
+                ],
+                backgroundColor: ['#198754', '#dc3545', '#6c757d'],
+                borderRadius: 5
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, grid: { display: false } } }
+        }
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Passenger Sentiment Intelligence</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background: #f4f7f6; font-family: 'Inter', sans-serif; color: #333; }
+        .kpi-card { border: none; border-radius: 12px; background: white; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); text-align: center; }
+        .kpi-val { font-size: 2.2rem; font-weight: bold; color: #2c3e50; }
+        .kpi-label { font-size: 0.8rem; color: #7f8c8d; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; }
+        .chart-card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); height: 100%; }
+        .log-container { background: white; border-radius: 15px; padding: 20px; height: 500px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .log-item { border-left: 5px solid #6c757d; padding: 15px; background: #fafafa; border-radius: 8px; margin-bottom: 15px; }
+        .log-item.Negative { border-left-color: #dc3545; background: #fff5f5; }
+        .log-item.Positive { border-left-color: #198754; background: #f6fff9; }
+        .pnr-tag { font-family: monospace; font-weight: bold; color: #495057; background: #e9ecef; padding: 2px 8px; border-radius: 4px; }
+    </style>
+</head>
+<body class="p-4">
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-0">✈️ Passenger Sentiment Intelligence</h2>
+            <p class="text-muted small">Real-time analysis across all flight PNRs (IST)</p>
+        </div>
+        <div>
+            <a href="/" class="btn btn-outline-primary me-2">Back to Analysis</a>
+            <button class="btn btn-dark" onclick="window.print()">Export Report</button>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="kpi-card">
+                <div class="kpi-label">Total Volume</div>
+                <div class="kpi-val">{{ total_reviews }}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="kpi-card border-bottom border-success border-4">
+                <div class="kpi-label text-success">Positive Feedback</div>
+                <div class="kpi-val">{{ sentiment_counts.get('Positive', 0) }}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="kpi-card border-bottom border-danger border-4">
+                <div class="kpi-label text-danger">Negative Alerts</div>
+                <div class="kpi-val">{{ sentiment_counts.get('Negative', 0) }}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="kpi-card border-bottom border-primary border-4">
+                <div class="kpi-label text-primary">Avg Confidence</div>
+                <div class="kpi-val">{{ avg_confidence }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="chart-card">
+                <h5 class="fw-bold mb-4">Category Distribution</h5>
+                <canvas id="painPointChart"></canvas>
+                <div class="mt-4">
+                    <p class="small text-muted">Automated category detection based on review keywords (Comfort, Service, General, etc.)</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <h5 class="fw-bold mb-3">📝 Master Passenger Logs</h5>
+            <div class="log-container">
+                {% if full_logs %}
+                    {% for category, review, sentiment, conf, time, pnr in full_logs %}
+                    <div class="log-item {{ sentiment }}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge bg-primary me-2">{{ category }}</span>
+                                <span class="pnr-tag">PNR: {{ pnr }}</span>
+                            </div>
+                            <small class="text-muted">{{ time }}</small>
+                        </div>
+                        <p class="my-2 italic">"{{ review }}"</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="fw-bold {% if sentiment == 'Positive' %}text-success{% elif sentiment == 'Negative' %}text-danger{% endif %}">
+                                {{ sentiment }} Analysis ({{ conf }}%)
+                            </small>
+                            <span class="text-muted" style="font-size: 0.7rem;">Verified Entry</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <p class="text-muted">No records found in database.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const catLabels = {{ cat_labels|tojson }};
+    const catValues = {{ cat_values|tojson }};
+
+    new Chart(document.getElementById('painPointChart'), {
+        type: 'doughnut',
+        data: {
+            labels: catLabels,
+            datasets: [{
+                data: catValues,
+                backgroundColor: ['#0d6efd', '#ffc107', '#0dcaf0', '#6610f2', '#6c757d'],
+                borderWidth: 0,
+                hoverOffset: 10
+            }]
+        },
+        options: {
+            cutout: '70%',
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } }
+            }
+        }
+    });
+</script>
+</body>
+</html>
